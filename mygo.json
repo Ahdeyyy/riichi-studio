@@ -3,7 +3,7 @@
   "slug": "riichi-studio",
   "icon": "resources/icon.png",
   "identifier": "io.github.ahdeyyy.riichistudio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Adebusuyi Adeala",
   "out": "build",
   "windows": {
