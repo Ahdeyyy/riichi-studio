@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the leading v (for example 0.2.0)
+        required: true
+        type: string
+      prerelease:
+        description: Mark the release as a pre-release
+        type: boolean
+        default: false
+      draft:
+        description: Create the release as a draft
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  TAG: v${{ inputs.version }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check version
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not of the form 1.2.3 or 1.2.3-beta.1."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$TAG" > /dev/null; then
+            echo "::error::Tag $TAG already exists."
+            exit 1
+          fi
+
+  build:
+    needs: check
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-latest, platform: windows/amd64 }
+          - { name: macOS, os: macos-latest, platform: darwin/universal }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version in mygo.json
+        run: perl -pi -e 's/("version"\s*:\s*")[^"]*"/${1}$ENV{VERSION}"/' mygo.json && cat mygo.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The tests score hands with the bundled Windows Agari engine.
+      - name: Test
+        if: runner.os == 'Windows'
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go test ./...
+          go tool mygo vet .
+
+      - name: Build
+        run: go tool mygo build -skip-installer -platform "${{ matrix.platform }}"
+
+      - name: Apply icon and package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/apply-icon.ps1 -Executable 'build/windows-amd64/Riichi Studio.exe'
+          Compress-Archive -Path 'build/windows-amd64/*' -DestinationPath "build/riichi-studio-$env:VERSION-windows-amd64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            build/*.zip
+            build/*/*.dmg
+            build/*/*.tar.gz
+            build/*/*.deb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Commit version and tag
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          perl -pi -e 's/("version"\s*:\s*")[^"]*"/${1}$ENV{VERSION}"/' mygo.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [ -n "$(git status --porcelain mygo.json)" ]; then
+            git add mygo.json
+            git commit -m "Release $TAG"
+            git push origin "HEAD:$BRANCH"
+          fi
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          flags=(--generate-notes --title "Riichi Studio $TAG")
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          [ "$DRAFT" = true ] && flags+=(--draft)
+          find dist -type f
+          gh release create "$TAG" "${flags[@]}" $(find dist -type f)
