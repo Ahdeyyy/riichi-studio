@@ -1,0 +1,42 @@
+[
+  {
+    "id": "A",
+    "name": "Table declaration",
+    "angle": 0,
+    "width": 380,
+    "height": 64,
+    "radius": 9,
+    "dot": 22,
+    "edge": 7
+  },
+  {
+    "id": "B",
+    "name": "Clean diagonal",
+    "angle": -30,
+    "width": 380,
+    "height": 64,
+    "radius": 9,
+    "dot": 22,
+    "edge": 0
+  },
+  {
+    "id": "C",
+    "name": "Placed stick",
+    "angle": -24,
+    "width": 380,
+    "height": 68,
+    "radius": 8,
+    "dot": 24,
+    "edge": 6
+  },
+  {
+    "id": "D",
+    "name": "Quiet horizontal",
+    "angle": 0,
+    "width": 360,
+    "height": 76,
+    "radius": 6,
+    "dot": 26,
+    "edge": 0
+  }
+]

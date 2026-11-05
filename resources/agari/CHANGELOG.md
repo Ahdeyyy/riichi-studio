@@ -1,0 +1,307 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.27.0]
+
+### Fixed
+
+- **Rinshan kaihou with haitei or ippatsu**: A win on a kan replacement tile no longer also scores haitei or ippatsu. The replacement tile is never the haitei tile, and the winner's own kan breaks ippatsu.
+
+## [0.26.0]
+
+### Added
+
+- **Sanma**: `Rules::sanma()` scores three-player mahjong. 2m-8m are left out of the wall, so a 1m dora indicator points to 9m, and there is no chi and no North seat or round. A tsumo is paid by the two other players at their usual share, so it pays less than at four players (tsumo loss). `Rules::players()` gives the table size. CLI: `--sanma`.
+- **Nukidora**: `GameContext::with_nukidora(n)` sets the Norths pulled in sanma. Each is one han, reported apart as `DoraCount::nuki` and `YakuResult::nuki_dora`, and counts again when a dora or ura indicator points at North. Pulled Norths are never hand tiles and count toward a counted yakuman. CLI: `--nuki <N>`.
+- **Rules-aware validation**: `validate_hand_with_context` checks a hand and its context against the rules before scoring, and `validate_tiles_and_calls` checks the tiles and calls of a hand of any size. Under sanma rules both refuse 2m-8m (including a red 5m) and chi, and `validate_hand_with_context` also refuses a North seat or round and a fifth North; under four-player rules it refuses nukidora. `Rules::in_wall`, `Rules::allows_chi`, `Rules::allows_nukidora` and `Rules::has_wind` answer the same questions directly, and `Rules::dora_for` gives the dora an indicator points to.
+- **Sanma ukeire**: `calculate_ukeire_with_rules` counts only tiles in the wall. The CLI's `--shanten` and `--ukeire` take `--sanma`.
+- **WASM**: `ScoreRequest` takes `nukidora`, and `rules` selects sanma with `{"variant": "Sanma"}`; the response's `dora` gains `nuki`. `calculate_ukeire_js` takes an optional `sanma` flag.
+- **Web UI**: A 4 Players / 3 Players toggle leads the options. Three-player mode drops 2m-8m, chi and the North seat and round from the choices and adds a nukidora counter, and shareable URLs carry the mode and the nukidora count.
+- A second digest test pins sanma scoring: 100,000 generated hands, hashed to one value. The standard digest is unchanged.
+
+### Changed
+
+- **New public fields**: `Rules` gains `variant`, `GameContext` gains `nukidora`, `DoraCount` gains `nuki` and `YakuResult` gains `nuki_dora`, each after the existing fields and defaulted when deserializing, so previously serialized values read as four-player scoring. Struct literals of `GameContext`, `DoraCount` and `YakuResult` need updating; `GameContext::new` and previously serialized values are unaffected.
+- **WASM validation**: `score_hand` now checks the tile count and copies before scoring, so a wrong-sized hand gets a clear error instead of "No valid hand structure found", and a hand holding a fifth copy of a tile is refused where it used to score.
+
+## [0.25.0]
+
+### Added
+
+- **Optional rules**: `Rules` holds switches for local yaku and is carried on `GameContext` (`with_rules`). `Rules::default()` scores exactly as before, and a golden digest test over 100,000 generated hands pins standard scoring. The WASM `ScoreRequest` accepts `rules`, `is_open_riichi` and `is_renhou`.
+- **Open riichi**: With `Rules::open_riichi`, a closed hand marked with `GameContext::open_riichi()` scores `OpenRiichi` (2 han) in place of riichi, or `OpenDoubleRiichi` (3 han) in place of double riichi. CLI: `--open-riichi`.
+- **Renhou**: `Rules::renhou` sets what renhou is worth for a closed non-dealer ron marked with `GameContext::renhou()`: `Renhou::Mangan` (without other yaku or dora, unless the hand scores more without renhou, as in EMA, WRC and JPML rules), `Renhou::Yakuman`, or `Renhou::Han(n)` (at least 1), which combines with other yaku and dora. CLI: `--renhou <mangan|yakuman|N>`.
+- **`Yaku::is_local()`**: Marks the local yaku so callers can list them separately.
+
+### Changed
+
+- **New `Yaku` variants and `GameContext` fields**: `Yaku` gains the local yaku `OpenRiichi`, `OpenDoubleRiichi` and `Renhou(Renhou)` after its existing variants, which keep their indices in positional formats, and `GameContext` gains `is_open_riichi`, `is_renhou` and `rules`. Exhaustive matches on `Yaku` and struct literals of `GameContext` need updating; `GameContext::new` and previously serialized contexts are unaffected.
+
+## [0.24.0]
+
+### Fixed
+
+- **Ryanpeikou with four identical sequences**: A closed hand of four identical sequences (for example `777788889999m11p`, four `789m` sequences plus an `11p` pair) now scores ryanpeikou (3 han) instead of iipeikou (1 han). Four copies of the same sequence form two identical-sequence pairs, so the hand is ryanpeikou. The san ankou and other peikou cases are unaffected.
+
+## [0.23.0]
+
+### Fixed
+
+- **San Ankou on ron**: A triplet completed by the winning tile on a ron is an open meld (minko) and no longer counts toward San Ankou when the only sequence covering the winning tile is an open called chi. Previously an open hand such as `111777m999p55z` with a called `(678m)` chi, ron on `7m`, was wrongly scored as San Ankou; it is now correctly yakuless. The legitimate case where the winning tile could instead complete a concealed sequence (leaving the same-value triplet concealed) still scores San Ankou. Suuankou is unaffected.
+
+## [0.22.0]
+
+### Changed
+
+- **Uncapped Yakuman Stacking**: Combined yakuman hands now stack by unit count with no cap, completing the full-scoring variant (8000 basic points per yakuman unit). A triple yakuman scores 24000 basic (non-dealer ron 96000), a quadruple 32000 (128000), and so on. Single yakuman (8000), the four double-yakuman patterns (16000), and counted/kazoe yakuman (always single, 8000) are unchanged. The `ScoreLevel::Yakuman` / `ScoreLevel::DoubleYakuman` variants are replaced by a single `ScoreLevel::Yakuman(u8)` carrying the unit count.
+
+### Fixed
+
+- **Double Yakuman Scoring**: Daisuushii (Big Four Winds) now scores 26 han (double yakuman) instead of 13, both closed and open. Suuankou Tanki is now emitted on tanki waits: a ron-completed suuankou (inherently tanki) and a tsumo completing the pair both score the double-yakuman `SuuankouTanki` (26 han), while a tsumo completing a triplet remains single `Suuankou` (13 han)
+
+## [0.21.0]
+
+### Fixed
+
+- **Shanten Meld Extraction**: Replaced greedy dual-pass meld extraction with recursive backtracking to fix incorrect shanten values for certain hands (e.g., hands with kanchan taatsu like 46789m were miscounted)
+
+## [0.20.0]
+
+### Added
+
+- **Python Bindings (agari-python crate)**: New `agari-python` crate providing PyO3-based Python bindings for shanten and ukeire calculations, along with general-purpose mahjong utilities (chi/kan helpers, tile parsing, etc.)
+
+### Changed
+
+- **Chi/Kan Utilities Moved to agari-core**: Chi and kan utility functions previously in `agari-python` have been moved into the `agari-core` library for broader reuse
+
+### Fixed
+
+- **Cargo Clippy Warnings**: Resolved all outstanding `cargo clippy` warnings in `agari-core` and `agari-python`
+
+## [0.19.1]
+
+### Fixed
+
+- **Practical Ukeire Zero-Available Waits**: Fixed ukeire excluding valid wait tiles when all copies were accounted for (hand + visible). A tile that improves shanten now always appears in the results even when 0 copies remain in the wall, so players can see their full wait shape.
+
+## [0.19.0]
+
+### Added
+
+- **Practical Ukeire (Tile Acceptance)**: New `calculate_ukeire_with_visible` and `calculate_ukeire_with_melds_and_visible` library functions that account for tiles already visible on the table (discard ponds, open melds, dora indicators). Available copies are computed as `4 - hand_count - visible_count` instead of the theoretical `4 - hand_count`.
+- **`--visible` CLI Flag**: New `--visible <TILES>` option for practical ukeire from the command line. Pass comma-separated visible tiles (e.g., `--visible 2z,2z,5p`) to subtract them from the available pool when computing ukeire.
+
+### Changed
+
+- **Ukeire Documentation**: Updated doc comments on all ukeire functions and `UkeireTile::available` to clarify the difference between theoretical and practical ukeire. Updated README with practical ukeire examples for both CLI and library usage.
+
+## [0.18.0]
+
+### Added
+
+- **Shareable URL Support**: Generate shareable URLs that encode the full hand configuration for the web calculator
+- **Crates.io Publishing**: Package is now available on crates.io with `cargo install agari`
+
+### Fixed
+
+- **Ukeire Analysis with Called Melds**: Fixed ukeire (tile acceptance) producing bogus results for hands with open melds — previously showed nearly all 34 tile types as improving tiles instead of the correct few
+- **Red Five in Shared URLs**: Preserved red five (aka dora) notation in the winning tile when generating shareable URLs
+- **Crates.io Publish Job**: Fixed cargo-dist custom publish job configuration for crates.io releases
+
+### Changed
+
+- **GitHub Username Migration**: Updated repository references from `sullenb` to `rysb-dev`
+
+## [0.17.0]
+
+### Changed
+
+- **GitHub Username Migration**: Updated all repository URLs and references from `ryblogs` to `sullenb`
+  - Updated Cargo.toml repository and homepage URLs
+  - Updated GitHub Actions workflows for deploy and release
+  - Updated Homebrew tap reference to `sullenb/homebrew-tap`
+  - Updated all installation instructions in README
+
+### Added
+
+- **Web UI Enhancements**:
+  - Dark tile theme with toggle option
+  - Improved score result layout
+  - Custom domain support (agari.org)
+
+### Fixed
+
+- **Mobile UX**: Prevented double-tap-to-zoom on mobile tile interactions
+
+### Documentation
+
+- Enhanced README with images and web frontend information
+- Updated live demo URL to agari.org
+
+## [0.16.0]
+
+### Added
+
+- **Japanese Localization (Web UI)**: Full Japanese (日本語) language support for the web interface
+  - Type-safe i18n system with English and Japanese translations
+  - Language switcher in header with persistent preference (localStorage)
+  - Auto-detection of browser language preference
+  - All UI strings, yaku names, and score levels translated
+  - Translations for: 満貫, 跳満, 倍満, 三倍満, 役満, etc.
+
+- **Suu Kantsu (四槓子) Yakuman**: Added the missing Four Kans yakuman
+  - Detects when hand contains exactly 4 kans (open or closed)
+  - Awards yakuman (13 han) - can stack with Suuankou for double yakuman
+  - Added CLI display: "Suu Kantsu (Four Kans)"
+  - Added WASM support and i18n translations
+
+### Fixed
+
+- **Yaku Translation Mapping**: Fixed yaku names not translating in Japanese locale
+  - Updated yakuNameMap to match actual WASM backend output format
+  - WASM uses shorter names (e.g., "Sanshoku Doujun") vs CLI verbose names
+  - Made translation helpers reactive to locale changes
+
+## [0.15.0]
+
+### Changed
+
+- **Web UI Redesign**: Complete redesign of the web interface with a modern linear design language
+  - Boxy, sharp-cornered design with no border-radius
+  - 1px borders for depth instead of shadows
+  - Modern dark color scheme (`#09090b` base, `#3b82f6` accent)
+  - Monospace typography for values, badges, and code elements
+  - Grid-based panel layout with 1px gap separators
+  - Flat hover states using border color changes
+  - Updated all components: Tile, TilePalette, ContextOptions, ScoreResult, DoraPicker
+
+### Fixed
+
+- **Validator CLI**: Simplified CLI by removing `--files` parameter; validator now always uses bundled test files
+
+## [0.14.0]
+
+### Added
+
+- **CI Test Workflow**: Added GitHub Actions workflow to run tests on all PRs and pushes to main
+- **CI Clippy Lint Check**: Added clippy linting to CI pipeline, enforcing zero warnings
+- **Regression Tests**: Added tests for sequences-first triplet extraction in shanten calculation
+
+### Changed
+
+- **Clippy 2024 Compliance**: Comprehensive clippy fixes across the codebase (PR #10)
+  - Modernized iterator patterns and range checks
+  - Replaced manual implementations with idiomatic Rust
+  - Simplified conditional expressions and closures
+
+### Fixed
+
+- **Deploy Workflow on Forks**: Fixed GitHub Pages deploy workflow failing on forks by adding repository owner check
+
+### New Contributors
+
+- **@DrCheeseFace** made their first contribution in PR #10 — thank you! 🎉
+
+## [0.13.1]
+
+### Fixed
+
+- **Tile Texture Rendering**: Embedded Front.svg background directly into all tile SVGs for proper texture/3D effect rendering
+- **Dora Picker Exhausted Tiles**: Tiles that have been fully used in the hand are now disabled in the dora/ura dora picker, preventing selection of unavailable tiles
+- **WIN Badge Overlap**: Moved the "WIN" label from top-right to bottom-center of tiles to avoid overlap with the remove button
+- **TypeScript Warning**: Fixed "Cannot find name 'process'" warning in vite.config.ts by using Vite's built-in `mode` parameter
+
+### Changed
+
+- **Tile Component Simplification**: Removed redundant tile background layering in Tile.svelte since backgrounds are now embedded in SVGs
+
+## [0.13.0]
+
+### Fixed
+
+- **Riichi Options for Open Hands**: Riichi, Double Riichi, and Ippatsu options are now disabled when the hand has open melds (chi, pon, or open kan)
+  - Options are automatically unchecked if they were selected before adding an open meld
+  - Shows notice: "🔓 Open hand — Riichi not available"
+
+### Added
+
+- **Live Demo Link**: Added prominent link to the web interface at the top of README.md
+
+## [0.12.0]
+
+### Fixed
+
+- **Red Five Duplicate in Meld Builder**: Fixed bug where users could add multiple red fives (aka dora) of the same suit in pon/chi/kan meld builder (e.g., 0p, 0p, 0p)
+  - Meld builder tiles now included in `tileCounts` so the palette updates in real-time
+  - Properly checks red five availability using separate `red5m`/`red5p`/`red5s` count tracking
+- **Invalid Chi Meld Sequences**: Fixed bug where chi meld builder allowed non-consecutive tiles (e.g., 5p5p5p or 2m4m6m)
+  - Added sequence validation that only allows tiles forming valid 3-consecutive runs
+  - Invalid tiles are now visually grayed out and unclickable in the palette
+
+### Changed
+
+- **Improved Meld Builder UX**: For pon/kan/ankan melds, after selecting the first tile, all other tile types are now visually disabled in the palette (previously only enforced in code)
+
+## [0.11.0]
+
+### Added
+
+- **Inferred Winning Tile Display**: When scoring a hand without explicitly selecting a winning tile, the frontend now shows which tile was automatically inferred and highlights it in the hand
+  - Yellow info banner: "💡 Winning tile inferred as [tile]. Click a tile in your hand to select explicitly."
+  - Auto-selects the inferred tile in the hand display with the "WIN" badge
+  - Handles red five matching (inferred "5m" correctly matches red "0m")
+- **WASM Test Suite**: Added 27 focused tests for `agari-wasm` covering the WASM binding layer
+  - Request/response integration tests
+  - Inferred winning tile functionality
+  - Shanten and ukeire API wrappers
+  - Helper functions (`parse_wind`, `yaku_name`, `format_structure`)
+
+### Changed
+
+- `ScoringOutput` in WASM bindings now includes optional `inferred_winning_tile` field
+
+## [0.10.0]
+
+### Added
+
+- **New Tile Graphics**: Replaced programmatic SVG tiles with beautiful riichi mahjong tile artwork from [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles) (public domain CC0)
+- **Visual Dora Picker**: Replaced text dropdown for dora/ura-dora selection with an intuitive visual tile picker modal
+- **Improved Tile Removal UX**: Added visible × button on hand tiles for easier removal (appears on hover for desktop, always visible on mobile/touch devices)
+- Dora indicator section now expanded by default for better discoverability
+
+### Fixed
+
+- **Tile Count Tracking for Melds**: Adding chi/pon/kan melds now correctly decreases the remaining tile count indicators
+- **Red Five Tracking**: Red 5 tiles (aka-dora) now correctly show 1 remaining instead of 4, since there's only one red five per suit
+- **Dora Indicator Red Five Handling**: Fixed dora/ura-dora selection and tracking for red fives using 0m/0p/0s notation
+
+### Changed
+
+- Red fives now appear at the end of each suit row in the dora picker (matching the main tile palette layout)
+- Increased horizontal spacing between tiles in the "Build Your Hand" tile selection area for better visual clarity
+- Removed "Right-click to remove" hint text (now using visible × buttons instead)
+
+## [0.9.0] - 2026-01-29
+
+### Fixed
+
+- Handle red five (0m/0p/0s) notation in dora selectors
+- Count dora in called melds (kans) correctly
+- Add red 5s to dora selector dropdowns
+
+## [0.8.0] - 2026-01-28
+
+### Fixed
+
+- Shanten calculation with called melds
+- Improved meld builder UI
+
+## [0.7.0] - 2026-01-27
+
+### Added
+
+- Web frontend with Svelte
+- WASM bindings for browser usage
+- Interactive hand builder UI

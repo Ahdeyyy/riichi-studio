@@ -1,0 +1,8 @@
+{
+  "name": "Riichi Studio",
+  "slug": "riichi-studio",
+  "icon": "resources/icon.png",
+  "identifier": "com.example.riichitutor",
+  "version": "0.1.0",
+  "out": "build"
+}
