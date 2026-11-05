@@ -53,3 +53,7 @@ Riichi Studio also uses:
 - Tile artwork from [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles), released under CC0 1.0 (`resources/tiles/LICENSE.md`).
 
 [SOURCES.md](SOURCES.md) has the book sections each lesson draws on, the pinned versions and checksums, and the rule scope.
+
+## License
+
+The source code is licensed under the [MIT License](LICENSE). The lesson content adapted from Riichi Book I stays under CC BY-NC 3.0, and the bundled engine and artwork keep their own licenses, as listed above.
