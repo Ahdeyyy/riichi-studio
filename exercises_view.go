@@ -86,7 +86,7 @@ func (a *app) questionExerciseView(c *ui.Context, r reviewQuestion, position str
 		primaryAction(c, "Next exercise").Disabled(!a.answered).OnClick(next)
 		record := a.exerciseRecords[r.key]
 		if record.Attempts > 0 {
-			secondary(c, fmt.Sprintf("This exercise: %d correct in %d attempts", record.Correct, record.Attempts))
+			secondary(c, fmt.Sprintf("This exercise: %d correct in %s", record.Correct, plural(record.Attempts, "attempt", "attempts")))
 		}
 	})
 }
@@ -155,7 +155,7 @@ func (a *app) discardExerciseView(c *ui.Context) {
 					if !correct {
 						prefix = "Compare the alternatives. "
 					}
-					a.feedback = fmt.Sprintf("%sBest choices: %s. They leave shanten %d with %d improving copies. Your choice leaves shanten %d with %d improving copies. %s", prefix, strings.Join(accepted, ", "), best.shanten, best.ukeire, picked.shanten, picked.ukeire, d.why)
+					a.feedback = fmt.Sprintf("%sBest choices: %s. They leave shanten %d with %s. Your choice leaves shanten %d with %s. %s", prefix, strings.Join(accepted, ", "), best.shanten, plural(best.ukeire, "improving copy", "improving copies"), picked.shanten, plural(picked.ukeire, "improving copy", "improving copies"), d.why)
 					a.recordExercise("discard:"+d.hand, correct)
 				})
 			}

@@ -92,10 +92,14 @@ func (a *app) tableTile(c *ui.Context, t int, selected bool, label string, click
 		b.Children(func() {
 			// Absolute children paint over the tile without taking layout space.
 			label := tileCornerLabel(t)
-			ui.Text(c, label).Absolute().Left(4).Top(1).FontSize(14).Bold().TextColor(ui.Hex("#5B5145")).Draw(func(p *ui.Painter, r ui.Rect) {
+			// 14 DIP from a 56 DIP tile up; smaller pond tiles scale it down
+			// so the label stays in its corner.
+			size := min(14, max(8, width/4))
+			inset := size * 4 / 14
+			ui.Text(c, label).Absolute().Left(inset).Top(1).FontSize(size).Bold().TextColor(ui.Hex("#5B5145")).Draw(func(p *ui.Painter, r ui.Rect) {
 				// Paint a 1 DIP ivory halo before the text's own foreground.
 				// One accessible text element is retained; no duplicate labels.
-				span := ui.Span{Text: label, Font: "Segoe UI", Size: 14, Weight: 700, Color: ui.Hex("#FFFFF8")}
+				span := ui.Span{Text: label, Font: "Segoe UI", Size: size, Weight: 700, Color: ui.Hex("#FFFFF8")}
 				for _, offset := range [][2]float32{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-.7, -.7}, {.7, -.7}, {-.7, .7}, {.7, .7}} {
 					p.RichText(r.X+offset[0], r.Y+offset[1], 0, span)
 				}

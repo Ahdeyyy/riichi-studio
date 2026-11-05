@@ -46,7 +46,10 @@ func (a *app) view(c *ui.Context) {
 
 func (a *app) practiceView(c *ui.Context) {
 	ui.Row(c).FillWidth().Justify(ui.SpaceBetween).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() { heading(c, "Your practice table"); ui.Text(c, "Solo hand").FontSize(14).TextColor(muted) })
+		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+			heading(c, "Your practice table")
+			ui.Text(c, "Solo hand").FontSize(14).TextColor(muted).SingleLine().Shrink(0)
+		})
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Button(c, "Restart guide").Disabled(a.busy).OnClick(func() { a.resetTable(false) })
 			ui.Button(c, "New random hand").Disabled(a.busy).OnClick(func() { a.resetTable(true) })
@@ -56,18 +59,24 @@ func (a *app) practiceView(c *ui.Context) {
 		ui.Column(c).FillWidth().Padding(22, 24, 24).Gap(16).Radius(16).Gradient(ui.Hex("#245D50"), ui.Hex("#184236"), 100).InsetShadow(0, 3, 9, 0, ui.RGBA(0, 0, 0, .3)).DrawOver(feltTexture).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.SpaceBetween).Children(func() {
 				ui.Text(c, fmt.Sprintf("Draw %d", a.turn)).FontSize(14).TextColor(feltText)
-				ui.Text(c, fmt.Sprintf("%d tiles remaining", len(a.wall))).FontSize(14).TextColor(feltText)
+				ui.Text(c, plural(len(a.wall), "tile", "tiles")+" remaining").FontSize(14).TextColor(feltText)
 			})
-			ui.Box(c).FillWidth().Height(48).Draw(drawWall)
+			ui.Box(c).FillWidth().Height(48).Draw(wallPainter(len(a.wall)))
 			ui.Column(c).FillWidth().MinHeight(148).Center().Gap(12).Children(func() {
 				if len(a.discards) == 0 {
 					ui.Box(c).Size(100, 100).Draw(drawCompass)
 				} else {
 					ui.Text(c, "Discards").FontSize(14).TextColor(feltLabel)
-					ui.Row(c).Wrap().Gap(4).Justify(ui.Center).MaxWidth(580).Children(func() {
+					// A long solo hand discards most of the wall. The pond keeps
+					// the compass's height, so the hand and the Discard button
+					// never move: tiles take the largest size whose rows fit.
+					width, _ := c.Size()
+					size, rowWidth := pondLayout(len(a.discards), width-122)
+					pond := ui.Row(c).Wrap().Gap(4).Justify(ui.Center).MaxWidth(rowWidth)
+					pond.Children(func() {
 						for i, t := range a.discards {
 							c.Key(a.discardIDs[i])
-							a.tableTile(c, t, false, tileName(t), func() {}, 40, a.discardIDs[i], 0)
+							a.tableTile(c, t, false, tileName(t), func() {}, size, a.discardIDs[i], 0)
 						}
 					})
 				}
@@ -175,10 +184,35 @@ func feltTexture(p *ui.Painter, r ui.Rect) {
 		}
 	}
 }
-func drawWall(p *ui.Painter, r ui.Rect) {
+
+// pondLayout picks the discard tile width and the row width for n discards
+// across the felt's inner width. The 40 DIP size keeps its narrow, centered
+// rows; smaller sizes use the felt's full width.
+func pondLayout(n int, felt float32) (size, rowWidth float32) {
+	const budget, gap = 160, 4
+	for _, s := range []float32{40, 30, 26, 22} {
+		w := felt
+		if s == 40 {
+			w = min(felt, 580)
+		}
+		perRow := max(1, int((w+gap)/(s+gap)))
+		rows := (n + perRow - 1) / perRow
+		if float32(rows)*(s*1.48+gap) <= budget {
+			return s, w
+		}
+	}
+	return 22, felt
+}
+
+// wallPainter draws one stack per seven tiles left, up to 18, so the wall
+// shrinks as the hand goes on and is gone at an exhaustive draw.
+func wallPainter(remaining int) func(*ui.Painter, ui.Rect) {
+	return func(p *ui.Painter, r ui.Rect) { drawWall(p, r, min(18, (remaining+6)/7)) }
+}
+func drawWall(p *ui.Painter, r ui.Rect, stacks int) {
 	width := float32(27)
-	start := r.X + (r.W-18*(width+2))/2
-	for i := 0; i < 18; i++ {
+	start := r.X + (r.W-float32(stacks)*(width+2))/2
+	for i := 0; i < stacks; i++ {
 		x := start + float32(i)*(width+2)
 		y := r.Y + 4
 		p.Shadow(ui.Rect{X: x, Y: y, W: width, H: 31}, 3, 0, 3, 3, 0, ui.RGBA(0, 0, 0, .2))

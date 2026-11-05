@@ -28,7 +28,7 @@ func (a *app) applyFixture(name string) {
 		// A counted yakuman, the longest breakdown Agari reports here.
 		a.notation, a.winning, a.indicator, a.dealer = "234m234p234s22456s", "6s", "1m1p1s4z", true
 		a.scorePage = "Scoring lab"
-		a.scoreResult = "13 han / 20 fu\n\nRiichi   1 han\nMenzen Tsumo   1 han\nPinfu   1 han\nTanyao   1 han\nSanshoku Doujun   2 han\nIipeikou   1 han\nDora bonuses   6 han\n\n48000 points total\n16000 from each opponent"
+		a.scoreResult = "13 han / 20 fu\n\nRiichi   1 han\nMenzen Tsumo   1 han\nPinfu   1 han\nTanyao   1 han\nSanshoku Doujun   2 han\nIipeikou   1 han\nDora bonuses   6 han\n\n48,000 points total\n16,000 from each opponent"
 		a.feedback = "Compare the alternatives. Best choices: 1 characters, 9 characters, East wind, White dragon. They leave shanten 2 with 46 improving copies. Your choice leaves shanten 3 with 112 improving copies."
 	case "Empty":
 		// An exhaustive draw: nothing left to draw, nothing scored.

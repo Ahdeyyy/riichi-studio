@@ -156,14 +156,14 @@ func TestScoringExerciseAnswers(t *testing.T) {
 			t.Fatalf("%+v gives %d", c, got)
 		}
 	}
-	if tsumoPayment(3, 20, false) != "1300 from East, 700 from each other" {
+	if tsumoPayment(3, 20, false) != "1,300 from East, 700 from each other" {
 		t.Fatal("tsumo rounding wrong")
 	}
 	if err := prepareEngine(); err != nil {
 		t.Fatal(err)
 	}
 	s, err := scoreHand(scoreInput{"234m456p234678s55p", "8s", "", false, false, false})
-	if err != nil || !strings.Contains(s, "2000 points") {
+	if err != nil || !strings.Contains(s, "2,000 points") {
 		t.Fatalf("placement example scoring %s %v", s, err)
 	}
 	if shanten(mustTiles("123m456p24s67s55p1z")) != 1 {

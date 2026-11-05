@@ -101,9 +101,9 @@ func TestAgariScoring(t *testing.T) {
 		in   scoreInput
 		want string
 	}{
-		{scoreInput{"123m456p234678s55p", "8s", "", true, true, false}, "2700 points"},
-		{scoreInput{"123m456p234678s55p", "8s", "", false, true, false}, "2000 points"},
-		{scoreInput{"123m456p234678s55p", "8s", "", true, true, true}, "3900 points"},
+		{scoreInput{"123m456p234678s55p", "8s", "", true, true, false}, "2,700 points"},
+		{scoreInput{"123m456p234678s55p", "8s", "", false, true, false}, "2,000 points"},
+		{scoreInput{"123m456p234678s55p", "8s", "", true, true, true}, "3,900 points"},
 	} {
 		s, e := scoreHand(tc.in)
 		if e != nil || !strings.Contains(s, tc.want) {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/egoist/mygo/ui"
+	"strconv"
 	"time"
 )
 
@@ -71,4 +73,24 @@ func pill(c *ui.Context, label string, active bool, click func()) ui.Element {
 	}
 	b.Background(b.AnimateColor("pill", bg, pillFade)).Children(func() { ui.Text(c, label).FontSize(14) })
 	return b
+}
+
+// plural pairs n with the singular or plural noun: "1 tile", "18 tiles".
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
+}
+
+// points groups thousands, as payments are read aloud: 48,000.
+func points(n int) string {
+	s := strconv.Itoa(max(n, -n))
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	if n < 0 {
+		s = "-" + s
+	}
+	return s
 }

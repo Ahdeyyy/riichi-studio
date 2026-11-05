@@ -1,39 +1,39 @@
 # Riichi Studio
 
-A native Windows riichi mahjong tutor built with Go and MyGo. A full-width felt table with a wood rail, ivory tiles with colored backs, detailed suit artwork, and a compact navigation bar that shares the title bar's band. Every surface is opaque; the window uses no backdrop blur. Tiles lift on hover and selection, new hands deal in sequence, and physical tiles animate from the hand into the discard area. Motion follows the operating system's reduced-motion preference. Includes 28 lessons in four stages, 56 worked examples, 56 lesson checks, 180 exercise items with saved results and targeted review, a tile glossary and offline Agari scoring.
+Riichi Studio is a desktop app for learning Japanese riichi mahjong. It takes you from recognizing the tiles to reading hand value and making table decisions, with a solo practice table and a scoring lab along the way. It is built with Go and [MyGo](https://github.com/egoist/mygo) and runs offline on Windows.
 
-Run from this directory:
+## Features
+
+- **Learn**: 28 lessons in four stages (First hands, Hand shape, Yaku and value, Table decisions). Each lesson has an overview, two worked examples and two checks.
+- **Practice**: a solo draw-and-discard table. Select a tile, discard it, declare riichi and claim tsumo. Hints suggest discards by hand shape. The first hand is a guided win; **New random hand** deals a fresh one.
+- **Exercises**: waits, full-hand waits, discard choices, yaku, payments and decisions. A ten-question mixed review shows your past mistakes first.
+- **Scoring lab**: enter a closed 14-tile hand in m/p/s/z notation, such as `123m456p234678s55p`, and see its han, fu, yaku and payment.
+- **Reference**: the full tile set and a glossary of terms.
+- **Tile labels**: optional corner labels (1–9, E/S/W/N, Wh/G/R) for players who don't read the characters yet.
+- **Saved progress**: lessons, checks, exercise results and preferences are saved in your user configuration folder under `riichi-tutor/`.
+
+The practice table is single-player training. It does not simulate opponents, calls or full matches. [SOURCES.md](SOURCES.md) lists the full rule scope.
+
+## Run locally
+
+You need the Go version listed in `go.mod`.
 
 ```powershell
 go run .
 ```
 
-Build a standalone Windows executable:
+## Build
+
+Build a standalone Windows executable and apply the app icon:
 
 ```powershell
 go tool mygo build -skip-installer
 ./scripts/apply-icon.ps1 -Executable 'build/windows-amd64/Riichi Studio.exe'
 ```
 
-The scoring engine is embedded; no Rust installation or network access is needed at runtime. Requires the Go version in go.mod to build. Windows x86-64 is the bundled scoring target; other systems need an `agari` CLI on PATH.
+The Agari scoring engine is embedded for Windows x86-64, so the app needs no network access or extra installs. On other systems, install the `agari` CLI and put it on your PATH.
 
-The original app icon was chosen from 20 drafts through two Claude Opus 5.5 judging rounds. SVG, PNG and ICO sources, review notes and size tests are in [design/icons](design/icons/README.md).
-
-Start with **Learn** if you have never played. In **Practice**, select East and declare riichi for the guided first win. Use **New random hand** for solo training. Hints compare hand shape; the table does not simulate opponents or full matches. **Scoring lab** accepts 14-tile closed hands in standard m/p/s/z notation.
-
-Progress is stored in the operating system's user configuration folder under `riichi-tutor/progress.json`.
-
-The learning path progresses through **First hands**, **Hand shape**, **Yaku and value**, and **Table decisions**. Each lesson has an overview, two worked examples and two checks. Examples cover calls, furiten, shanten, ukeire, complex waits, pinfu, value sets, dora, alternative yaku, exact scoring cases, riichi judgment, suji, push/fold and placement goals. Lessons remain open for review at any time.
-
-**Exercises** offers 79 two-tile block waits (including honors), seven full-hand wait problems, ten discard problems, yaku quizzes, 28 generated payment questions and decision scenarios. These and the lesson checks form a 180-item mixed-review bank. Ten-question review sessions prioritize past mistakes; correct/attempt counts are saved. Discard problems compare shanten and then improving copies, counting the discarded tile as visible; they assume no other visible tiles and do not assess danger or hand value.
-
-Detailed check progress and exercise records are stored in `riichi-tutor/learning.json`. Previously passed single-check lessons migrate as passed first checks; each added second check remains available to finish. Completing this material builds a foundation for casual play, but the solo practice table still does not simulate opponents or a full match.
-
-Tile artwork uses bundled 600 × 800 PNG images from FluffyStuff's CC0 riichi tile set. The **Tile labels** checkbox applies everywhere: 1–9 for suited tiles and E/S/W/N/Wh/G/R for honors. Labels overlay the top-left corner inside each tile without changing the artwork's position or size. Labels are on by default; your choice is saved in `riichi-tutor/preferences.json` in the same configuration folder. All artwork works offline.
-
-The jade title bar supports dragging, double-click maximize, minimize, restore and close. Windows retains its resizing edges and snap-layout support. Action buttons fit their text rather than stretching across panels.
-
-Checks:
+## Test
 
 ```powershell
 $env:CGO_ENABLED='0'
@@ -41,10 +41,15 @@ go test ./...
 go tool mygo vet .
 ```
 
-See [SOURCES.md](SOURCES.md) for source attribution, licenses, and the rule scope.
+`go run -tags dev .` adds a toggle to the running app. It switches between demo, worst-case, empty and single-item data, which is useful when checking layout changes.
 
-Layout fixtures (Demo, Worst case, Empty, One) live in `fixtures.go`. To flip between them in the running app, start a dev build; release builds leave the toggle out:
+## Attribution
 
-```powershell
-go run -tags dev .
-```
+The lessons and strategy content are adapted, in original wording, from **Riichi Book I: A Mahjong Strategy Primer for European Players** by **Daina Chiba**, available at [github.com/dainachiba/RiichiBooks](https://github.com/dainachiba/RiichiBooks). The book is licensed under [Creative Commons Attribution-NonCommercial 3.0](https://creativecommons.org/licenses/by-nc/3.0/). The adapted material carries the same terms: keep this attribution and do not use it commercially. The beginner rules introduction and the exercises are original to this app. The book itself is not included.
+
+Riichi Studio also uses:
+
+- [Agari](https://github.com/agari-industries/agari) v0.27.0 for scoring, under the MIT license (`resources/agari/LICENSE`).
+- Tile artwork from [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles), released under CC0 1.0 (`resources/tiles/LICENSE.md`).
+
+[SOURCES.md](SOURCES.md) has the book sections each lesson draws on, the pinned versions and checksums, and the rule scope.

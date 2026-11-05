@@ -107,7 +107,7 @@ func scoreHand(in scoreInput) (string, error) {
 	hideEngineWindow(command)
 	out, e := command.CombinedOutput()
 	if e != nil {
-		return "", fmt.Errorf("Agari could not score this hand: %s", strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("Agari could not score this hand: %s", engineMessage(out))
 	}
 	var result struct {
 		Interpretations []struct {
@@ -149,12 +149,12 @@ func scoreHand(in scoreInput) (string, error) {
 	if r.Dora.Total > 0 {
 		text += fmt.Sprintf("Dora bonuses   %d han\n", r.Dora.Total)
 	}
-	text += fmt.Sprintf("\n%d points total", r.Payment.Total)
+	text += fmt.Sprintf("\n%s points total", points(r.Payment.Total))
 	if in.tsumo {
 		if in.dealer {
-			text += fmt.Sprintf("\n%d from each opponent", r.Payment.Total/3)
+			text += fmt.Sprintf("\n%s from each opponent", points(r.Payment.Total/3))
 		} else {
-			text += fmt.Sprintf("\n%d from East; %d from each other player", r.Payment.FromDealer, r.Payment.FromNonDealer)
+			text += fmt.Sprintf("\n%s from East; %s from each other player", points(r.Payment.FromDealer), points(r.Payment.FromNonDealer))
 		}
 	} else {
 		text += "\nPaid by the discarder"
@@ -178,4 +178,20 @@ func (a *app) calculate(in scoreInput) {
 			publish(func() { a.scoreResult = result; a.busy = false })
 		}
 	}()
+}
+
+// engineMessage is the first line of Agari's output, at most 160
+// characters: a panic or usage dump would otherwise fill the panel.
+func engineMessage(out []byte) string {
+	msg := strings.TrimSpace(string(out))
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		msg = strings.TrimSpace(msg[:i])
+	}
+	if r := []rune(msg); len(r) > 160 {
+		msg = string(r[:159]) + "…"
+	}
+	if msg == "" {
+		return "no details were reported."
+	}
+	return msg
 }

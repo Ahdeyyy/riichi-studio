@@ -44,11 +44,11 @@ func ensureExerciseBank() {
 				if dealer {
 					seat = "dealer"
 				}
-				why := fmt.Sprintf("%d han and %d fu: %s ron is %d points, rounded up to 100. No honba or deposits are included.", han, fu, seat, value)
+				why := fmt.Sprintf("%d han and %d fu: %s ron is %s points, rounded up to 100. No honba or deposits are included.", han, fu, seat, points(value))
 				if han == 5 || han == 4 && fu == 40 {
 					why = "This reaches mangan: 8,000 non-dealer ron or 12,000 dealer ron. Fu no longer raises this payment."
 				}
-				reviewBank = append(reviewBank, reviewQuestion{fmt.Sprintf("score:ron:%d:%d:%t", han, fu, dealer), "Scoring", "", checkQuestion{fmt.Sprintf("%d han, %d fu, %s ron. With no honba or deposits, what is the payment?", han, fu, seat), []string{fmt.Sprint(value), fmt.Sprint(value + 100), fmt.Sprint(value + 1000)}, 0, why}})
+				reviewBank = append(reviewBank, reviewQuestion{fmt.Sprintf("score:ron:%d:%d:%t", han, fu, dealer), "Scoring", "", checkQuestion{fmt.Sprintf("%d han, %d fu, %s ron. With no honba or deposits, what is the payment?", han, fu, seat), []string{points(value), points(value + 100), points(value + 1000)}, 0, why}})
 			}
 		}
 	}
@@ -128,9 +128,9 @@ func ronPoints(han, fu int, dealer bool) int {
 func tsumoPayment(han, fu int, dealer bool) string {
 	b := basePoints(han, fu)
 	if dealer {
-		return fmt.Sprintf("%d from each opponent", round100(b*2))
+		return fmt.Sprintf("%s from each opponent", points(round100(b*2)))
 	}
-	return fmt.Sprintf("%d from East, %d from each other", round100(b*2), round100(b))
+	return fmt.Sprintf("%s from East, %s from each other", points(round100(b*2)), points(round100(b)))
 }
 func waitNames(w []int) string {
 	names := []string{}

@@ -160,5 +160,12 @@ func (a *app) navigate(page string) {
 	}
 }
 func (a *app) progress() string {
-	return fmt.Sprintf("%d of %d lessons complete", len(a.completed), len(lessons))
+	// Count true entries: progress.json is parsed as-is and may hold false.
+	done := 0
+	for _, ok := range a.completed {
+		if ok {
+			done++
+		}
+	}
+	return fmt.Sprintf("%d of %d lessons complete", done, len(lessons))
 }
