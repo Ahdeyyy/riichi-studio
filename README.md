@@ -24,12 +24,15 @@ go run .
 
 ## Build
 
-Build a standalone Windows executable and apply the app icon:
+Build the Windows app and its installer:
 
 ```powershell
-go tool mygo build -skip-installer
-./scripts/apply-icon.ps1 -Executable 'build/windows-amd64/Riichi Studio.exe'
+go tool mygo build
 ```
+
+This writes `build/windows-amd64/Riichi Studio.exe` and `riichi-studio-setup-<version>-amd64.exe`, an installer made with NSIS (mygo downloads NSIS when it is not installed). The installer needs no admin rights: it installs into `%LOCALAPPDATA%\Programs\Riichi Studio`, adds a Start menu shortcut, and registers an uninstaller under Settings > Apps. Add `-skip-installer` to build only the executable.
+
+Before packing the installer, mygo runs `scripts/sign-windows.ps1` on each executable (`windows.signCommand` in `mygo.json`). It applies the app icon and, when `WINDOWS_CERTIFICATE_FILE` (and `WINDOWS_CERTIFICATE_PASSWORD`, if the certificate has one) is set, signs with `signtool`. The release workflow sets these from the `WINDOWS_CERTIFICATE` (base64 `.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets. Unsigned builds work, but SmartScreen warns on first run.
 
 The Agari scoring engine is embedded for Windows x86-64, so the app needs no network access or extra installs. On other systems, install the `agari` CLI and put it on your PATH.
 

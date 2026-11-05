@@ -2,7 +2,11 @@
   "name": "Riichi Studio",
   "slug": "riichi-studio",
   "icon": "resources/icon.png",
-  "identifier": "com.example.riichitutor",
+  "identifier": "io.github.ahdeyyy.riichistudio",
   "version": "0.1.0",
-  "out": "build"
+  "publisher": "Adebusuyi Adeala",
+  "out": "build",
+  "windows": {
+    "signCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 %1"
+  }
 }

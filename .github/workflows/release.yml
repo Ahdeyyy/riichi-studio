@@ -79,15 +79,39 @@ jobs:
           go test ./...
           go tool mygo vet .
 
-      - name: Build
-        run: go tool mygo build -skip-installer -platform "${{ matrix.platform }}"
+      # Optional code signing: add WINDOWS_CERTIFICATE (a base64 .pfx) and
+      # WINDOWS_CERTIFICATE_PASSWORD as repository secrets to sign the app,
+      # the installer and its uninstaller. Without them builds are unsigned.
+      - name: Prepare signing certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) { Write-Output 'No certificate: building unsigned.'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'certificate.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          "WINDOWS_CERTIFICATE_FILE=$pfx" >> $env:GITHUB_ENV
 
-      - name: Apply icon and package
+      # On Windows, mygo runs scripts/sign-windows.ps1 (windows.signCommand)
+      # on the app before packing it, which applies the icon and signs when
+      # it can, then builds the NSIS installer.
+      - name: Build
+        env:
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: go tool mygo build -platform "${{ matrix.platform }}"
+
+      - name: Package portable zip
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./scripts/apply-icon.ps1 -Executable 'build/windows-amd64/Riichi Studio.exe'
-          Compress-Archive -Path 'build/windows-amd64/*' -DestinationPath "build/riichi-studio-$env:VERSION-windows-amd64.zip"
+          $files = Get-ChildItem 'build/windows-amd64' | Where-Object Name -notlike '*-setup-*'
+          Compress-Archive -Path $files.FullName -DestinationPath "build/riichi-studio-$env:VERSION-windows-amd64-portable.zip"
+
+      - name: Remove signing certificate
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: Remove-Item -Force (Join-Path $env:RUNNER_TEMP 'certificate.pfx') -ErrorAction SilentlyContinue
 
       - uses: actions/upload-artifact@v4
         with:
@@ -95,6 +119,7 @@ jobs:
           if-no-files-found: error
           path: |
             build/*.zip
+            build/*/*-setup-*.exe
             build/*/*.dmg
             build/*/*.tar.gz
             build/*/*.deb
