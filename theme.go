@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/egoist/mygo/ui"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -37,7 +38,10 @@ var pillFade = ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.CubicBezi
 
 func appTheme() *ui.Theme {
 	theme := ui.DarkTheme()
-	theme.Font = "Segoe UI"
+	// Elsewhere the theme keeps the system's own interface font.
+	if runtime.GOOS == "windows" {
+		theme.Font = "Segoe UI"
+	}
 	theme.FontSize = 16
 	theme.Background = pageBottom
 	theme.Text = ink
@@ -94,3 +98,6 @@ func points(n int) string {
 	}
 	return s
 }
+
+// The theme never changes, so every frame sets the same one.
+var theme = appTheme()

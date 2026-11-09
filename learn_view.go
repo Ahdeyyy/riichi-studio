@@ -69,7 +69,8 @@ func (a *app) learnView(c *ui.Context) {
 				secondary(c, fmt.Sprintf("Check %d of %d", a.lessonCheck+1, len(questions)))
 				body(c, q.prompt)
 				for i, choice := range q.choices {
-					actionButton(c, choice).Key(fmt.Sprintf("answer-%d", i)).MaxWidth(560).Disabled(passed).OnClick(func() { a.answerLesson(i) })
+					c.Key(fmt.Sprintf("answer-%d", i))
+					actionButton(c, choice).MaxWidth(560).Disabled(passed).OnClick(func() { a.answerLesson(i) })
 				}
 				if a.feedback != "" {
 					body(c, a.feedback)

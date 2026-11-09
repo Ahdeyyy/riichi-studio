@@ -1,6 +1,6 @@
 # Riichi Studio
 
-Riichi Studio is a desktop app for learning Japanese riichi mahjong. It takes you from recognizing the tiles to reading hand value and making table decisions, with a solo practice table and a scoring lab along the way. It is built with Go and [MyGo](https://github.com/egoist/mygo) and runs offline on Windows.
+Riichi Studio is a desktop app for learning Japanese riichi mahjong. It takes you from recognizing the tiles to reading hand value and making table decisions, with a solo practice table and a scoring lab along the way. It is built with Go and [MyGo](https://github.com/egoist/mygo) and runs offline on Windows, macOS and Linux.
 
 ## Features
 
@@ -34,7 +34,36 @@ This writes `build/windows-amd64/Riichi Studio.exe` and `riichi-studio-setup-<ve
 
 Before packing the installer, mygo runs `scripts/sign-windows.ps1` on each executable (`windows.signCommand` in `mygo.json`). It applies the app icon and, when `WINDOWS_CERTIFICATE_FILE` (and `WINDOWS_CERTIFICATE_PASSWORD`, if the certificate has one) is set, signs with `signtool`. The release workflow sets these from the `WINDOWS_CERTIFICATE` (base64 `.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD` repository secrets. Unsigned builds work, but SmartScreen warns on first run.
 
-The Agari scoring engine is embedded for Windows x86-64, so the app needs no network access or extra installs. On other systems, install the `agari` CLI and put it on your PATH.
+### Updates
+
+The app updates itself from this repository's GitHub releases (`updates` in `mygo.json`). It checks 10 seconds after launch and daily, and **Check for updates** in the navigation bar checks on demand; a newer version shows there as **Update to x.y.z**. The update window shows the release notes and downloads, verifies and installs the update, then relaunches.
+
+Updates are signed with an Ed25519 key from `go tool mygo keygen`. `mygo.json` holds the public key; the release workflow reads the secret key from the `MYGO_UPDATER_PRIVATE_KEY` repository secret and refuses to release without it, since installed apps only accept updates signed with that key. Keep a backup of the secret key: losing it strands existing installs. To build signed updates locally, set `MYGO_UPDATER_PRIVATE_KEY` to the key's contents before `go tool mygo build`.
+
+The per-user installer and the portable zip can update themselves; development builds (`go run`) cannot.
+
+### Scoring engine
+
+The Agari scoring engine ships with the app as a resource, so the app needs no network access or extra installs. Each platform's build lives in its own directory of `resources/`, which mygo merges into that platform's app: `resources/windows-amd64/agari/agari.exe` is in the repository, and `scripts/fetch-agari.sh` downloads the macOS and Linux builds from Agari's release, checks them against pinned SHA-256 sums and puts them in `resources/darwin-*/agari` and `resources/linux-*/agari` (not committed). Run it once before `go run .`, `go test` or `go tool mygo build` on those systems; with no arguments it fetches the build for your machine. An `agari` on your PATH is used when none is bundled.
+
+### macOS and Linux
+
+```sh
+scripts/fetch-agari.sh darwin-arm64 darwin-amd64
+go tool mygo build -platform darwin/universal        # on a Mac: Riichi Studio.app and a .dmg
+
+scripts/fetch-agari.sh linux-amd64 linux-arm64
+go tool mygo build -platform linux/amd64,linux/arm64 # .tar.gz with install.sh, and .deb
+```
+
+The Linux packages need GTK 3 only (`linux.webview` is `false` in `mygo.json`). Without a Developer ID certificate the macOS app is signed ad hoc: Gatekeeper blocks a downloaded copy until you allow it under System Settings > Privacy & Security, while the release's `install.sh` (`curl -fsSL https://github.com/Ahdeyyy/riichi-studio/releases/latest/download/install.sh | sh`) installs it without that prompt, and is also the self-updating install on Linux.
+
+## Workflows
+
+- **CI** (`.github/workflows/ci.yml`) runs on pushes to `master` and on pull requests. It runs the tests and `mygo vet` on Windows, macOS and Linux, then builds the macOS and Linux packages and checks that each holds the engine for its platform.
+- **Release** (`.github/workflows/release.yml`) is started by hand with a version. It builds, signs and publishes the Windows installer and portable zip, the universal macOS disk image, and the Linux archives and Debian packages for x86-64 and ARM64, with the signed update files for all of them, then commits the version and tags it.
+
+Optional secrets sign the macOS app with a Developer ID and notarize it: `MACOS_CERTIFICATE` (a base64 `.p12` of a Developer ID Application certificate), `MACOS_CERTIFICATE_PASSWORD`, and for notarization `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` (an app-specific password).
 
 ## Test
 
@@ -43,6 +72,8 @@ $env:CGO_ENABLED='0'
 go test ./...
 go tool mygo vet .
 ```
+
+`go test -run '^$' -bench . -benchmem` times a frame of the busiest pages and the hand analysis; `go test -run TestStartupCost -v` reports launch time and memory.
 
 `go run -tags dev .` adds a toggle to the running app. It switches between demo, worst-case, empty and single-item data, which is useful when checking layout changes.
 

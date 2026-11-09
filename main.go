@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"log"
 	"os"
 	"path/filepath"
 )
-
-//go:embed resources/icon.png
-var appIconPNG []byte
 
 //go:embed resources/icon-window.png
 var appWindowIconPNG []byte
@@ -46,6 +44,7 @@ type app struct {
 	showTileLabels                        bool
 	update                                func(func())
 	chrome                                windowActions
+	updates                               updateActions
 	devData                               int
 }
 
@@ -139,6 +138,9 @@ func main() {
 	if err := prepareEngine(); err != nil {
 		log.Printf("Scoring engine: %v", err)
 	}
+	// Checks GitHub releases (updates in mygo.json) shortly after launch and
+	// daily, and offers a newer version in a native window.
+	mygo.Use(native.Plugin)
 	mygo.App.WhenReady(func() {
 		w := mygo.NewWindow(mygo.WindowOptions{Title: "Riichi Studio", Width: 1280, Height: 860, MinWidth: 980, MinHeight: 700, StateKey: "main", TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 40, HideWindowButtons: true, BackgroundColor: "#13261F", Content: ui.View(a.view)})
 		a.chrome = windowActions{minimize: w.Minimize, toggleMaximize: w.ToggleMaximize, close: w.Close, maximized: w.IsMaximized}
@@ -146,6 +148,7 @@ func main() {
 			log.Printf("Window icon: %v", err)
 		}
 		a.update = func(fn func()) { w.Update(fn) }
+		a.watchUpdates()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

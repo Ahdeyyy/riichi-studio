@@ -113,3 +113,25 @@ func TestActionsUseContentWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateButton(t *testing.T) {
+	a := newApp()
+	tt := ui.NewTester(a.view, 1280, 900)
+	if _, ok := tt.Find("Check for updates"); ok {
+		t.Fatal("update button shown without the updater")
+	}
+	checks := 0
+	a.updates.check = func() { checks++ }
+	tt.Frame()
+	if err := tt.Click("Check for updates"); err != nil {
+		t.Fatal(err)
+	}
+	a.updates.available = "0.2.0"
+	tt.Frame()
+	if err := tt.Click("Update to 0.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	if checks != 2 {
+		t.Fatalf("checks = %d, want 2", checks)
+	}
+}

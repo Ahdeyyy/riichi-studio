@@ -5,23 +5,28 @@ import (
 	"math/rand/v2"
 	"sort"
 	"strings"
+	"sync"
 )
 
 var honorNames = []string{"East", "South", "West", "North", "White dragon", "Green dragon", "Red dragon"}
 var honorFaces = []string{"東", "南", "西", "北", "白", "發", "中"}
 
-func tileName(t int) string {
-	if t >= 27 {
-		return honorNames[t-27]
+// Names and codes are read for every tile of every frame, so they are
+// built once.
+var tileNames, tileCodes = func() (names, codes [34]string) {
+	for t := range names {
+		if t >= 27 {
+			names[t], codes[t] = honorNames[t-27], fmt.Sprintf("%dz", t-26)
+			continue
+		}
+		names[t] = fmt.Sprintf("%d %s", t%9+1, []string{"characters", "dots", "bamboo"}[t/9])
+		codes[t] = fmt.Sprintf("%d%c", t%9+1, "mps"[t/9])
 	}
-	return fmt.Sprintf("%d %s", t%9+1, []string{"characters", "dots", "bamboo"}[t/9])
-}
-func tileCode(t int) string {
-	if t >= 27 {
-		return fmt.Sprintf("%dz", t-26)
-	}
-	return fmt.Sprintf("%d%s", t%9+1, []string{"m", "p", "s"}[t/9])
-}
+	return
+}()
+
+func tileName(t int) string { return tileNames[t] }
+func tileCode(t int) string { return tileCodes[t] }
 func parseTiles(s string) ([]int, error) {
 	var tiles, digits []int
 	for _, r := range strings.ReplaceAll(s, " ", "") {
@@ -80,11 +85,162 @@ func notation(tiles []int) string {
 
 // Shape analysis enumerates melds, incomplete groups and a head, then also
 // checks seven pairs and thirteen orphans. It does not imply a legal yaku.
+//
+// The suits cannot share a group, so each is enumerated on its own and the
+// four results are combined, rather than walking their product. The view
+// asks for the shanten of the hand on every frame, and the drills ask
+// hundreds of times at launch.
 func shanten(tiles []int) int {
 	var counts [34]int
 	for _, t := range tiles {
 		counts[t]++
 	}
+	if len(tiles) > 14 {
+		return shantenWalk(counts)
+	}
+	pairs, unique, orphans, orphanPair := 0, 0, 0, 0
+	for i, n := range counts {
+		if n > 4 {
+			return shantenWalk(counts)
+		}
+		if n > 0 {
+			unique++
+			if i >= 27 || i%9 == 0 || i%9 == 8 {
+				orphans++
+				if n >= 2 {
+					orphanPair = 1
+				}
+			}
+		}
+		if n >= 2 {
+			pairs++
+		}
+	}
+	best := min(8, 6-pairs+max(0, 7-unique), 13-orphans-orphanPair)
+	// all[head][melds] is the most incomplete groups the suits so far give.
+	all := noShapes
+	all[0][0] = 0
+	for suit := 0; suit < 4; suit++ {
+		shapes := suitShapes(counts[suit*9:min(34, suit*9+9)], suit < 3)
+		next := noShapes
+		for h := 0; h < 2; h++ {
+			for m := 0; m < 5; m++ {
+				if all[h][m] < 0 {
+					continue
+				}
+				for sh := 0; h+sh < 2; sh++ {
+					for sm := 0; m+sm < 5; sm++ {
+						if t := shapes[sh][sm]; t >= 0 {
+							next[h+sh][m+sm] = max(next[h+sh][m+sm], all[h][m]+t)
+						}
+					}
+				}
+			}
+		}
+		all = next
+	}
+	for h := 0; h < 2; h++ {
+		for m := 0; m < 5; m++ {
+			if t := int(all[h][m]); t >= 0 {
+				best = min(best, 8-2*m-min(t, 4-m)-h)
+			}
+		}
+	}
+	return best
+}
+
+// suitTable[head][melds] is the most incomplete groups one suit's tiles
+// make beside that many melds and heads, or -1 when they cannot make them.
+type suitTable [2][5]int8
+
+var noShapes = suitTable{{-1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1}}
+
+// Tables are kept by the suit's counts: hands repeat suits far more often
+// than whole hands. Scoring runs off the UI thread, hence the lock.
+var suitTables = struct {
+	sync.Mutex
+	m map[uint32]suitTable
+}{m: map[uint32]suitTable{}}
+
+func suitShapes(counts []int, runs bool) suitTable {
+	var c [9]int
+	key := uint32(0)
+	for i, n := range counts {
+		c[i] = n
+		key = key*5 + uint32(n)
+	}
+	if runs {
+		key |= 1 << 31
+	}
+	suitTables.Lock()
+	table, ok := suitTables.m[key]
+	suitTables.Unlock()
+	if ok {
+		return table
+	}
+	table = noShapes
+	var walk func(int, int, int, int)
+	walk = func(i, melds, taatsu, head int) {
+		for i < 9 && c[i] == 0 {
+			i++
+		}
+		if i == 9 {
+			if melds < 5 {
+				table[head][melds] = max(table[head][melds], int8(taatsu))
+			}
+			return
+		}
+		if c[i] >= 3 {
+			c[i] -= 3
+			walk(i, melds+1, taatsu, head)
+			c[i] += 3
+		}
+		if runs && i <= 6 && c[i+1] > 0 && c[i+2] > 0 {
+			c[i]--
+			c[i+1]--
+			c[i+2]--
+			walk(i, melds+1, taatsu, head)
+			c[i]++
+			c[i+1]++
+			c[i+2]++
+		}
+		if c[i] >= 2 {
+			c[i] -= 2
+			if head == 0 {
+				walk(i, melds, taatsu, 1)
+			}
+			walk(i, melds, taatsu+1, head)
+			c[i] += 2
+		}
+		if runs {
+			for d := 1; d <= 2; d++ {
+				if i+d < 9 && c[i+d] > 0 {
+					c[i]--
+					c[i+d]--
+					walk(i, melds, taatsu+1, head)
+					c[i]++
+					c[i+d]++
+				}
+			}
+		}
+		c[i]--
+		walk(i, melds, taatsu, head)
+		c[i]++
+	}
+	walk(0, 0, 0, 0)
+	suitTables.Lock()
+	if len(suitTables.m) >= 1<<15 {
+		clear(suitTables.m)
+	}
+	suitTables.m[key] = table
+	suitTables.Unlock()
+	return table
+}
+
+// shantenWalk is the same analysis by one walk over the whole hand. It
+// takes any number of tiles, and is the reference the suit tables are
+// tested against, but needs tens of microseconds for a 14-tile hand.
+func shantenWalk(counts [34]int) int {
 	best := 8
 	pairs, unique, orphans, orphanPair := 0, 0, 0, 0
 	for i, n := range counts {

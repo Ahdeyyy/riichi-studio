@@ -74,9 +74,10 @@ func ensureExerciseBank() {
 	}
 	for _, d := range waitDrills {
 		correct := waitNames(d.answers)
-		wrong := tileCode((d.answers[0]/9)*9 + (d.answers[0]%9+1)%9)
-		if d.answers[0] >= 27 {
-			wrong = tileCode(27 + (d.answers[0]-27+1)%7)
+		// The next tile of the suit, or of the honors, which have seven.
+		wrong := tileCode(27 + (d.answers[0]-27+1)%7)
+		if d.answers[0] < 27 {
+			wrong = tileCode((d.answers[0]/9)*9 + (d.answers[0]%9+1)%9)
 		}
 		if len(d.answers) > 1 {
 			wrong = tileCode(d.answers[0])
@@ -139,7 +140,15 @@ func waitNames(w []int) string {
 	}
 	return strings.Join(names, ", ")
 }
+
+// The bank never changes once built, and the exercise view asks for its
+// topic's questions on every frame.
+var topicQuestions = map[string][]reviewQuestion{}
+
 func questionsFor(topic string) []reviewQuestion {
+	if out, ok := topicQuestions[topic]; ok {
+		return out
+	}
 	ensureExerciseBank()
 	var out []reviewQuestion
 	for _, q := range reviewBank {
@@ -147,6 +156,7 @@ func questionsFor(topic string) []reviewQuestion {
 			out = append(out, q)
 		}
 	}
+	topicQuestions[topic] = out
 	return out
 }
 func (a *app) startReview() {

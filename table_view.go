@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/egoist/mygo/ui"
+	"image"
+	"image/color"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -12,7 +15,7 @@ func secondary(c *ui.Context, s string) { ui.Text(c, s).FontSize(14).TextColor(m
 func heading(c *ui.Context, s string)   { ui.Text(c, s).FontSize(24).Bold().TextColor(ink) }
 
 func (a *app) view(c *ui.Context) {
-	c.SetTheme(appTheme())
+	c.SetTheme(theme)
 	ui.Column(c).Fill().Gradient(pageTop, pageBottom, 180).Children(func() {
 		a.titlebar(c)
 		ui.Row(c).FillWidth().Padding(4, 28, 10).Gap(6).AlignItems(ui.Center).Background(chrome).BorderWidth(0, 0, 1, 0).BorderColor(hairline).Children(func() {
@@ -21,6 +24,7 @@ func (a *app) view(c *ui.Context) {
 				pill(c, page, a.page == page, func() { a.navigate(page) })
 			}
 			ui.Spacer(c).Grow(1)
+			a.updateButton(c)
 			ui.Checkbox(c, &a.showTileLabels, "Tile labels").OnChange(a.savePreferences)
 		})
 		ui.Scroll(c).FillWidth().Grow(1).Children(func() {
@@ -173,16 +177,33 @@ func (a *app) practiceView(c *ui.Context) {
 	})
 }
 
-func feltTexture(p *ui.Painter, r ui.Rect) {
-	// Fixed grain has no per-frame randomness or moving noise.
-	for y := float32(4); y < r.H; y += 6 {
-		for x := float32(4); x < r.W; x += 7 {
-			v := int(x*17+y*31) % 11
-			if v < 4 {
-				p.Fill(ui.Rect{X: r.X + x, Y: r.Y + y, W: 1, H: 1}, ui.RGBA(228, 239, 209, .035), 0)
+// The felt's grain is a fixed pattern of faint 1 DIP dots that repeats
+// every 77 by 66 DIPs. Painting each dot was some five thousand fills a
+// frame; a bitmap of 4 by 4 repeats covers the felt in a dozen images.
+const grainWidth, grainHeight = 4 * 77, 4 * 66
+
+var feltGrain = sync.OnceValue(func() *ui.Bitmap {
+	img := image.NewNRGBA(image.Rect(0, 0, grainWidth, grainHeight))
+	for y := 4; y < grainHeight; y += 6 {
+		for x := 4; x < grainWidth; x += 7 {
+			if (x*17+y*31)%11 < 4 {
+				img.SetNRGBA(x, y, color.NRGBA{R: 228, G: 239, B: 209, A: 9})
 			}
 		}
 	}
+	// A dot stays a square at any display scale.
+	return ui.NewBitmap(img).Pixelated()
+})
+
+func feltTexture(p *ui.Painter, r ui.Rect) {
+	grain := feltGrain()
+	p.Clip(r, 16, func() {
+		for y := float32(0); y < r.H; y += grainHeight {
+			for x := float32(0); x < r.W; x += grainWidth {
+				p.Image(grain, ui.Rect{X: r.X + x, Y: r.Y + y, W: grainWidth, H: grainHeight}, ui.FillBox)
+			}
+		}
+	})
 }
 
 // pondLayout picks the discard tile width and the row width for n discards

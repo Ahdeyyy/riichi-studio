@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/egoist/mygo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,31 +13,35 @@ import (
 	"time"
 )
 
-//go:embed resources/agari/agari.exe resources/agari/LICENSE
-var engineFiles embed.FS
 var enginePath string
 
+// prepareEngine finds the Agari build that ships with the app. It is one
+// of the app's resources, in the directory of its platform
+// (resources/windows-amd64/agari, and so on), which a built app merges into
+// its resources; go run and go test see the directories as they are. An
+// agari on the PATH serves a build that ships none.
 func prepareEngine() error {
-	if runtime.GOOS != "windows" {
-		p, e := exec.LookPath("agari")
-		enginePath = p
-		return e
+	name := "agari"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
 	}
-	dir, e := os.UserCacheDir()
-	if e != nil {
-		return e
+	if dir, err := mygo.App.Path(mygo.PathResources); err == nil {
+		for _, p := range []string{
+			filepath.Join(dir, "agari", name),
+			filepath.Join(dir, runtime.GOOS+"-"+runtime.GOARCH, "agari", name),
+		} {
+			if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() {
+				enginePath = p
+				return nil
+			}
+		}
 	}
-	dir = filepath.Join(dir, "riichi-tutor", "agari-0.27.0")
-	if e = os.MkdirAll(dir, 0755); e != nil {
-		return e
+	p, err := exec.LookPath("agari")
+	if err != nil {
+		return fmt.Errorf("no bundled Agari for %s/%s (see scripts/fetch-agari.sh), and none on the PATH", runtime.GOOS, runtime.GOARCH)
 	}
-	enginePath = filepath.Join(dir, "agari.exe")
-	data, e := engineFiles.ReadFile("resources/agari/agari.exe")
-	if e != nil {
-		return e
-	}
-	// Always restore the known embedded engine instead of trusting cache content.
-	return os.WriteFile(enginePath, data, 0700)
+	enginePath = p
+	return nil
 }
 
 type scoreInput struct {
@@ -86,7 +90,7 @@ func scoreHand(in scoreInput) (string, error) {
 		}
 	}
 	if enginePath == "" {
-		return "", fmt.Errorf("Agari is unavailable. On non-Windows systems, install the agari CLI and restart.")
+		return "", fmt.Errorf("The Agari scoring engine is missing. Reinstall the app, or install the agari CLI and restart.")
 	}
 	args := []string{in.hand, "--win", in.win, "--round", "e", "--seat", "s", "--json", "--no-color"}
 	if in.dealer {

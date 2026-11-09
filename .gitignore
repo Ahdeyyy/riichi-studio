@@ -2,3 +2,6 @@
 /.mygo/
 mygo_windows_*.syso
 /.cache/
+# Agari for macOS and Linux, from scripts/fetch-agari.sh
+/resources/darwin-*/
+/resources/linux-*/

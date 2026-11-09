@@ -5,8 +5,26 @@
   "identifier": "io.github.ahdeyyy.riichistudio",
   "version": "0.1.1",
   "publisher": "Adebusuyi Adeala",
+  "license": "MIT",
   "out": "build",
+  "resourcesExclude": [
+    "tiles",
+    "icon.*",
+    "icon-window.png",
+    "agari/README.md",
+    "agari/CHANGELOG.md"
+  ],
+  "updates": {
+    "publicKey": "EOBDEWTKlnkLtSrfSf+77Jrmdb55r7pzOccOV5zBQlQ=",
+    "github": "Ahdeyyy/riichi-studio"
+  },
   "windows": {
     "signCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 %1"
+  },
+  "linux": {
+    "comment": "Learn Japanese riichi mahjong",
+    "categories": ["Game", "BoardGame"],
+    "command": "riichi-studio",
+    "webview": false
   }
 }
