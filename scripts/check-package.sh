@@ -35,12 +35,18 @@ for dir in build/linux-*; do
     *-arm64) want="aarch64" ;;
     *) want="x86-64" ;;
   esac
-  file "$engine" | grep -q "ELF 64-bit.*$want" || fail "$engine is not a Linux $want executable: $(file -b "$engine")"
+  # Each listing is taken whole before it is searched: grep -q stops at its
+  # match, and under pipefail the lister's broken pipe would then fail the
+  # very check that passed.
+  kind=$(file -b "$engine")
+  grep -q "ELF 64-bit.*$want" <<< "$kind" || fail "$engine is not a Linux $want executable: $kind"
   for archive in "$dir"/*.tar.gz; do
-    tar -tzf "$archive" | grep -q '\(^\|/\)agari/agari$' || fail "$archive does not hold agari/agari"
+    listing=$(tar -tzf "$archive")
+    grep -q '\(^\|/\)agari/agari$' <<< "$listing" || fail "$archive does not hold agari/agari"
   done
   for deb in "$dir"/*.deb; do
-    dpkg-deb -c "$deb" | grep -q '/agari/agari$' || fail "$deb does not hold agari/agari"
+    listing=$(dpkg-deb -c "$deb")
+    grep -q '/agari/agari$' <<< "$listing" || fail "$deb does not hold agari/agari"
   done
   echo "$dir: Agari for $want, in its archive and package"
   checked=$((checked + 1))
