@@ -36,7 +36,7 @@ Before packing the installer, mygo runs `scripts/sign-windows.ps1` on each execu
 
 ### Updates
 
-The app updates itself from this repository's GitHub releases (`updates` in `mygo.json`). It checks 10 seconds after launch and daily, and **Check for updates** in the navigation bar checks on demand; a newer version shows there as **Update to x.y.z**. The update window shows the release notes and downloads, verifies and installs the update, then relaunches.
+The app updates itself from this repository's GitHub releases (`updates` in `mygo.json`). It checks 10 seconds after launch and daily, and **Check for updates** in the navigation bar checks on demand; a newer version shows there as **Update to x.y.z**. When a check finds one, an update dialog opens over the app with the release notes. **Download and install** downloads, verifies and installs the update with a progress bar (**Hide** keeps it downloading in the background), then **Restart now** relaunches into the new version. **Later** closes the dialog, and background checks don't offer that version again until you check yourself. Failed background checks stay silent. The updater code is in `updates.go` and uses `mygo.Updater` directly.
 
 Updates are signed with an Ed25519 key from `go tool mygo keygen`. `mygo.json` holds the public key; the release workflow reads the secret key from the `MYGO_UPDATER_PRIVATE_KEY` repository secret and refuses to release without it, since installed apps only accept updates signed with that key. Keep a backup of the secret key: losing it strands existing installs. To build signed updates locally, set `MYGO_UPDATER_PRIVATE_KEY` to the key's contents before `go tool mygo build`.
 

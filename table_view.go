@@ -45,6 +45,7 @@ func (a *app) view(c *ui.Context) {
 			})
 		})
 		a.devToolbar(c)
+		a.updateDialog(c)
 	})
 }
 

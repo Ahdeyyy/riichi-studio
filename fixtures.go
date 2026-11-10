@@ -49,7 +49,7 @@ func (a *app) applyFixture(name string) {
 // no save path, so fixture state never overwrites saved progress.
 func fixtureBase(old *app) *app {
 	a := newApp()
-	a.update, a.chrome, a.devData = old.update, old.chrome, old.devData
+	a.update, a.chrome, a.updates, a.devData = old.update, old.chrome, old.updates, old.devData
 	return a
 }
 
