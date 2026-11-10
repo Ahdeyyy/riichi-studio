@@ -62,7 +62,8 @@ func (a *app) questionExerciseView(c *ui.Context, r reviewQuestion, position str
 		}
 		body(c, r.q.prompt)
 		for i, choice := range r.q.choices {
-			actionButton(c, choice).Key(fmt.Sprintf("drill-answer-%d", i)).MaxWidth(580).Disabled(a.answered).OnClick(func() {
+			c.Key(fmt.Sprintf("drill-answer-%d", i))
+			actionButton(c, choice).MaxWidth(580).Disabled(a.answered).OnClick(func() {
 				correct := i == r.q.correct
 				a.answered = true
 				if a.exerciseMode == 6 {

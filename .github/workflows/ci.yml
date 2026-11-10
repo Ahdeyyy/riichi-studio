@@ -1,0 +1,99 @@
+name: CI
+
+# Tests the app on Windows, macOS and Linux, then builds the macOS and Linux
+# packages as the release workflow does, without signing or publishing, so
+# a change that breaks a platform shows before a release is cut.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CGO_ENABLED: '0'
+
+jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Linux, os: ubuntu-latest }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The Windows engine is in the repository; the others are fetched,
+      # checked against pinned SHA-256 sums.
+      - name: Fetch the Agari engine
+        if: runner.os != 'Windows'
+        run: bash scripts/fetch-agari.sh
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go tool mygo vet .
+
+  package:
+    name: Package (${{ matrix.name }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            platform: darwin/universal
+            engines: darwin-arm64 darwin-amd64
+          - name: Linux
+            os: ubuntu-latest
+            platform: linux/amd64,linux/arm64
+            engines: linux-amd64 linux-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Fetch the Agari engine
+        run: bash scripts/fetch-agari.sh ${{ matrix.engines }}
+
+      # Without the update key this builds the apps and their packages, and
+      # no update manifests. The macOS app is signed ad hoc.
+      - name: Build
+        run: go tool mygo build -platform "${{ matrix.platform }}"
+
+      - name: Check the packaged engine
+        run: bash scripts/check-package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            build/*/*.dmg
+            build/*/*.tar.gz
+            build/*/*.deb

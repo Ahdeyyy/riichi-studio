@@ -238,7 +238,7 @@ func TestTileLabelsAndAssets(t *testing.T) {
 			t.Fatalf("missing image for %s", tileName(tile))
 		}
 		w, h := b.Size()
-		if w != 600 || h != 800 {
+		if w != tileBitmapWidth || h != tileBitmapHeight {
 			t.Fatalf("%s image size %dx%d", tileName(tile), w, h)
 		}
 	}

@@ -48,6 +48,16 @@ jobs:
             echo "::error::Tag $TAG already exists."
             exit 1
           fi
+      # Without the key mygo builds no update manifests, and installed apps
+      # could never update to the release.
+      - name: Check update signing key
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MYGO_UPDATER_PRIVATE_KEY" ]; then
+            echo "::error::Add the MYGO_UPDATER_PRIVATE_KEY secret (mygo-update.key from mygo keygen) to sign updates."
+            exit 1
+          fi
 
   build:
     needs: check
@@ -57,9 +67,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Windows, os: windows-latest, platform: windows/amd64 }
-          - { name: macOS, os: macos-latest, platform: darwin/universal }
-          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+          - name: Windows
+            os: windows-latest
+            platform: windows/amd64
+          - name: macOS
+            os: macos-latest
+            platform: darwin/universal
+            engines: darwin-arm64 darwin-amd64
+          - name: Linux
+            os: ubuntu-latest
+            platform: linux/amd64,linux/arm64
+            engines: linux-amd64 linux-arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -70,7 +88,13 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # The tests score hands with the bundled Windows Agari engine.
+      # The Windows engine is in the repository. The macOS and Linux ones
+      # come from Agari's release, checked against pinned SHA-256 sums, into
+      # resources/<platform>/agari, which mygo ships with that platform's app.
+      - name: Fetch the Agari engine
+        if: runner.os != 'Windows'
+        run: bash scripts/fetch-agari.sh ${{ matrix.engines }}
+
       - name: Test
         if: runner.os == 'Windows'
         env:
@@ -78,6 +102,63 @@ jobs:
         run: |
           go test ./...
           go tool mygo vet .
+
+      # The CI workflow runs every test on every system. Here macOS and
+      # Linux prove what a release depends on: hand analysis, and the
+      # fetched engine scoring hands on this system.
+      - name: Test the engine
+        if: runner.os != 'Windows'
+        env:
+          CGO_ENABLED: '0'
+        run: go test -run 'TestShapeAnalysis|TestShantenMatchesWalk|TestAgariScoring|TestScoringExerciseAnswers' .
+
+      # Optional: with MACOS_CERTIFICATE (a base64 .p12 of a Developer ID
+      # Application certificate) and MACOS_CERTIFICATE_PASSWORD the app and
+      # its disk image are signed with it, and with APPLE_ID, APPLE_TEAM_ID
+      # and APPLE_APP_PASSWORD (an app-specific password) also notarized.
+      # Without them the app is signed ad hoc, which Gatekeeper blocks on
+      # other Macs until the user allows it.
+      - name: Prepare macOS signing
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo 'No certificate: signing ad hoc.'
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain
+          identity="$(security find-identity -v -p codesigning "$keychain" |
+            sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
+          if [ -z "$identity" ]; then
+            echo '::error::MACOS_CERTIFICATE holds no Developer ID Application identity.'
+            exit 1
+          fi
+          jq --arg identity "$identity" '.macos.signingIdentity = $identity' mygo.json > mygo.json.tmp
+          mv mygo.json.tmp mygo.json
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            xcrun notarytool store-credentials notary --keychain "$keychain" \
+              --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+            jq --arg keychain "$keychain" \
+              '.macos.notarize = {keychainProfile: "notary", keychain: $keychain}' mygo.json > mygo.json.tmp
+            mv mygo.json.tmp mygo.json
+          else
+            echo 'No notary credentials: signing without notarizing.'
+          fi
 
       # Optional code signing: add WINDOWS_CERTIFICATE (a base64 .pfx) and
       # WINDOWS_CERTIFICATE_PASSWORD as repository secrets to sign the app,
@@ -95,23 +176,44 @@ jobs:
 
       # On Windows, mygo runs scripts/sign-windows.ps1 (windows.signCommand)
       # on the app before packing it, which applies the icon and signs when
-      # it can, then builds the NSIS installer.
+      # it can, then builds the NSIS installer. With the update key it also
+      # writes the signed update archive, deltas from published versions,
+      # the update manifest, the install scripts and build/SHA256SUMS.
+      # macOS gets a universal app in a disk image, and Linux an archive
+      # with install.sh and a Debian package for each architecture.
       - name: Build
         env:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}"
+
+      - name: Check the packaged engine
+        if: runner.os != 'Windows'
+        run: bash scripts/check-package.sh
 
       - name: Package portable zip
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $files = Get-ChildItem 'build/windows-amd64' | Where-Object Name -notlike '*-setup-*'
+          $updateFiles = '*-setup-*', '*.tar.gz', '*.delta', 'update-*.json', 'install.ps1'
+          $files = Get-ChildItem 'build/windows-amd64' | Where-Object { $name = $_.Name; -not ($updateFiles | Where-Object { $name -like $_ }) }
           Compress-Archive -Path $files.FullName -DestinationPath "build/riichi-studio-$env:VERSION-windows-amd64-portable.zip"
+
+      # Every platform writes build/SHA256SUMS; the release job merges them.
+      - name: Collect checksums
+        working-directory: build
+        run: |
+          for zip in *.zip; do [ -e "$zip" ] && sha256sum "$zip" >> SHA256SUMS; done
+          mv SHA256SUMS "SHA256SUMS-${{ matrix.name }}"
 
       - name: Remove signing certificate
         if: always() && runner.os == 'Windows'
         shell: pwsh
         run: Remove-Item -Force (Join-Path $env:RUNNER_TEMP 'certificate.pfx') -ErrorAction SilentlyContinue
+
+      - name: Remove macOS signing keychain
+        if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2> /dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -119,10 +221,15 @@ jobs:
           if-no-files-found: error
           path: |
             build/*.zip
+            build/SHA256SUMS-*
             build/*/*-setup-*.exe
             build/*/*.dmg
             build/*/*.tar.gz
             build/*/*.deb
+            build/*/*.delta
+            build/*/update-*.json
+            build/*/install.sh
+            build/*/install.ps1
 
   release:
     needs: build
@@ -134,6 +241,25 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      # A release holds each file name once. macOS and both Linux builds
+      # write the same install.sh; anything else of one name must match too.
+      - name: Collect release files
+        run: |
+          mkdir release
+          sort -u -k2 dist/SHA256SUMS-* > release/SHA256SUMS
+          rm dist/SHA256SUMS-*
+          find dist -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            if [ ! -e "release/$name" ]; then
+              cp "$file" "release/$name"
+            elif ! cmp -s "$file" "release/$name"; then
+              echo "::error::Two builds wrote different files named $name."
+              exit 1
+            fi
+          done
+          cat release/SHA256SUMS
+          ls -l release
 
       - name: Commit version and tag
         env:
@@ -159,5 +285,4 @@ jobs:
           flags=(--generate-notes --title "Riichi Studio $TAG")
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           [ "$DRAFT" = true ] && flags+=(--draft)
-          find dist -type f
-          gh release create "$TAG" "${flags[@]}" $(find dist -type f)
+          gh release create "$TAG" "${flags[@]}" release/*
